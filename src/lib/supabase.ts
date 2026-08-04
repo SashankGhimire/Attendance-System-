@@ -2,28 +2,72 @@ import { createClient } from '@supabase/supabase-js';
 import { AttendanceRecord, Employee } from '../types';
 import { DEFAULT_EMPLOYEES, getTodayString, getYesterdayString } from './utils';
 
-const supabaseUrl = 
+function normalizeSupabaseProjectUrl(url: string): string {
+  const trimmed = (url || '').trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.origin;
+  } catch {
+    return trimmed
+      .replace(/\/+$/, '')
+      .replace(/\/rest\/v1$/i, '');
+  }
+}
+
+function isSupportedSupabaseHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.endsWith('.supabase.co') ||
+    hostname.endsWith('.supabase.in')
+  );
+}
+
+const rawSupabaseUrl =
   import.meta.env.VITE_SUPABASE_URL ||
   import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
   (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL)) ||
   '';
 
+const supabaseUrl = normalizeSupabaseProjectUrl(rawSupabaseUrl);
+
 const supabaseAnonKey = 
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  (import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)) ||
-  '';
+  '').trim();
 
 // Helper to determine if actual Supabase keys are provided
 export const isSupabaseConfigured = (): boolean => {
-  return (
-    !!supabaseUrl &&
-    !!supabaseAnonKey &&
-    !supabaseUrl.includes('your-project') &&
-    !supabaseUrl.includes('YOUR_SUPABASE') &&
-    supabaseUrl.startsWith('https://')
-  );
+  if (!supabaseUrl || !supabaseAnonKey) return false;
+
+  try {
+    const parsed = new URL(supabaseUrl);
+    return (
+      !supabaseUrl.includes('your-project') &&
+      !supabaseUrl.includes('YOUR_SUPABASE') &&
+      isSupportedSupabaseHost(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
 };
+
+let supabaseHealth: 'unknown' | 'available' | 'unavailable' = 'unknown';
+
+function markSupabaseHealth(available: boolean) {
+  supabaseHealth = available ? 'available' : 'unavailable';
+}
+
+function canUseSupabase(): boolean {
+  return (
+    isSupabaseConfigured() &&
+    !!supabase &&
+    supabaseHealth !== 'unavailable'
+  );
+}
 
 // Initialize Supabase client if configured
 export const supabase = isSupabaseConfigured()
@@ -38,6 +82,7 @@ export type DataSourceState = {
 
 export async function probeDataSource(): Promise<DataSourceState> {
   if (!isSupabaseConfigured() || !supabase) {
+    markSupabaseHealth(false);
     return {
       mode: 'local-storage',
       label: 'Local Storage Mode',
@@ -49,6 +94,7 @@ export async function probeDataSource(): Promise<DataSourceState> {
     const { error: employeeError } = await supabase.from('employees').select('id').limit(1);
     const { error: attendanceError } = await supabase.from('attendance').select('id').limit(1);
     if (!employeeError && !attendanceError) {
+      markSupabaseHealth(true);
       return {
         mode: 'supabase',
         label: 'Supabase Connected',
@@ -56,9 +102,11 @@ export async function probeDataSource(): Promise<DataSourceState> {
       };
     }
   } catch (err) {
+    markSupabaseHealth(false);
     console.warn('Supabase connection probe failed, using local fallback', err);
   }
 
+  markSupabaseHealth(false);
   return {
     mode: 'local-fallback',
     label: 'Supabase Check Failed',
@@ -126,16 +174,18 @@ function saveLocalEmployees(employees: Employee[]) {
  * Fetch all employees
  */
 export async function fetchEmployees(): Promise<Employee[]> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase.from('employees').select('*').order('name');
-      if (!error && data && data.length > 0) {
+      const { data, error } = await client.from('employees').select('*').order('name');
+      if (!error && data) {
+        markSupabaseHealth(true);
         return data as Employee[];
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase employees query error', err);
     }
-    return [];
   }
   return getLocalEmployees();
 }
@@ -149,15 +199,17 @@ export async function addEmployee(emp: Omit<Employee, 'id'>): Promise<Employee> 
     id: `emp-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
   };
 
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase.from('employees').insert(emp).select().single();
+      const { data, error } = await client.from('employees').insert(emp).select().single();
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as Employee;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase add employee error', err);
-      throw err;
     }
   }
 
@@ -171,9 +223,10 @@ export async function addEmployee(emp: Omit<Employee, 'id'>): Promise<Employee> 
  * Update an existing team member (allows admin to update shift times live)
  */
 export async function updateEmployee(emp: Employee): Promise<Employee> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('employees')
         .update({
           name: emp.name,
@@ -185,11 +238,12 @@ export async function updateEmployee(emp: Employee): Promise<Employee> {
         .single();
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as Employee;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase update employee error', err);
-      throw err;
     }
   }
 
@@ -203,14 +257,16 @@ export async function updateEmployee(emp: Employee): Promise<Employee> {
  * Delete a team member
  */
 export async function deleteEmployee(empId: string): Promise<boolean> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { error } = await supabase.from('employees').delete().eq('id', empId);
+      const { error } = await client.from('employees').delete().eq('id', empId);
       if (error) throw error;
+      markSupabaseHealth(true);
       return true;
     } catch (e) {
+      markSupabaseHealth(false);
       console.error('Supabase delete employee error:', e);
-      throw e;
     }
   }
 
@@ -224,14 +280,16 @@ export async function deleteEmployee(empId: string): Promise<boolean> {
  * Clear all attendance records
  */
 export async function clearAllAttendanceRecords(): Promise<boolean> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { error } = await supabase.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const { error } = await client.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
+      markSupabaseHealth(true);
       return true;
     } catch (e) {
+      markSupabaseHealth(false);
       console.error('Supabase clear records error', e);
-      throw e;
     }
   }
   saveLocalRecords([]);
@@ -242,20 +300,22 @@ export async function clearAllAttendanceRecords(): Promise<boolean> {
  * Fetch all attendance records
  */
 export async function fetchAttendance(): Promise<AttendanceRecord[]> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('attendance')
         .select('*')
         .order('clock_in', { ascending: false });
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as AttendanceRecord[];
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase attendance query error', err);
     }
-    return [];
   }
   return getLocalRecords();
 }
@@ -284,9 +344,10 @@ export async function recordClockIn(
     created_at: clockInTime,
   };
 
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('attendance')
         .insert({
           employee_id: employee.id,
@@ -300,11 +361,12 @@ export async function recordClockIn(
         .single();
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as AttendanceRecord;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase clock-in error', err);
-      throw err;
     }
   }
 
@@ -323,14 +385,15 @@ export async function recordClockOut(
   hoursWorked: string,
   reason?: string
 ): Promise<AttendanceRecord | null> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
       const existing = (await fetchAttendance()).find(r => r.id === recordId);
       const combinedReason = existing?.reason
         ? (reason ? `${existing.reason} | Out Note: ${reason}` : existing.reason)
         : (reason ? `Out Note: ${reason}` : null);
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('attendance')
         .update({
           clock_out: clockOutTime,
@@ -342,11 +405,12 @@ export async function recordClockOut(
         .single();
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as AttendanceRecord;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase clock-out error', err);
-      throw err;
     }
   }
 
@@ -387,9 +451,10 @@ export async function reclockRecord(
   const clockInTime = new Date().toISOString();
   const reclockReason = reason ? `Re-clocked: ${reason}` : 'Re-clocked shift';
 
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('attendance')
         .update({
           clock_in: clockInTime,
@@ -402,11 +467,12 @@ export async function reclockRecord(
         .single();
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as AttendanceRecord;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase reclock error', err);
-      throw err;
     }
   }
 
@@ -438,14 +504,16 @@ export async function reclockRecord(
  * Delete Attendance Record
  */
 export async function deleteAttendanceRecord(recordId: string): Promise<boolean> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { error } = await supabase.from('attendance').delete().eq('id', recordId);
+      const { error } = await client.from('attendance').delete().eq('id', recordId);
       if (error) throw error;
+      markSupabaseHealth(true);
       return true;
     } catch (e) {
+      markSupabaseHealth(false);
       console.error('Supabase delete attendance error:', e);
-      throw e;
     }
   }
 
@@ -462,9 +530,10 @@ export async function updateAttendanceRecord(
   recordId: string,
   updates: Partial<AttendanceRecord>
 ): Promise<AttendanceRecord | null> {
-  if (isSupabaseConfigured() && supabase) {
+  const client = supabase;
+  if (canUseSupabase() && client) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('attendance')
         .update(updates)
         .eq('id', recordId)
@@ -472,11 +541,12 @@ export async function updateAttendanceRecord(
         .single();
 
       if (!error && data) {
+        markSupabaseHealth(true);
         return data as AttendanceRecord;
       }
     } catch (err) {
+      markSupabaseHealth(false);
       console.warn('Supabase update attendance record error', err);
-      throw err;
     }
   }
 
@@ -505,10 +575,11 @@ export async function updateAttendanceRecord(
  * Realtime Subscription for Attendance table
  */
 export function subscribeToRealtimeAttendance(onChange: (records: AttendanceRecord[]) => void) {
-  let supabaseChannel: ReturnType<typeof supabase.channel> | null = null;
+  const client = supabase;
+  let supabaseChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
 
-  if (isSupabaseConfigured() && supabase) {
-    supabaseChannel = supabase
+  if (canUseSupabase() && client) {
+    supabaseChannel = client
       .channel('public:attendance')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
         const updated = await fetchAttendance();
@@ -542,10 +613,11 @@ export function subscribeToRealtimeAttendance(onChange: (records: AttendanceReco
  * Realtime Subscription for Employees table / local storage
  */
 export function subscribeToRealtimeEmployees(onChange: (employees: Employee[]) => void) {
-  let supabaseChannel: ReturnType<typeof supabase.channel> | null = null;
+  const client = supabase;
+  let supabaseChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
 
-  if (isSupabaseConfigured() && supabase) {
-    supabaseChannel = supabase
+  if (canUseSupabase() && client) {
+    supabaseChannel = client
       .channel('public:employees')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, async () => {
         const updated = await fetchEmployees();

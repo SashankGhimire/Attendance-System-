@@ -105,12 +105,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isSupabaseConfigured()) {
-      localStorage.removeItem('workflow_attendance_records');
-      localStorage.removeItem('workflow_team_employees');
-    }
+    let isMounted = true;
 
-    loadData();
+    const initializeData = async () => {
+      const state = await probeDataSource();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setDataSourceState(state);
+
+      if (state.mode === 'supabase') {
+        localStorage.removeItem('workflow_attendance_records');
+        localStorage.removeItem('workflow_team_employees');
+      }
+
+      await loadData();
+    };
+
+    initializeData();
 
     // Subscribe to Realtime attendance updates
     const unsubscribeAttendance = subscribeToRealtimeAttendance(updatedRecords => {
@@ -123,6 +137,7 @@ export default function App() {
     });
 
     return () => {
+      isMounted = false;
       unsubscribeAttendance();
       unsubscribeEmployees();
     };
