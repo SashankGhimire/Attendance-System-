@@ -209,7 +209,7 @@ export default function App() {
   }, [addToast]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-100 selection:text-blue-900 flex flex-col transition-colors duration-200">
+    <div className="min-h-screen min-w-0 bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-100 selection:text-blue-900 flex flex-col transition-colors duration-200">
       {/* 1. Splash Screen Overlay */}
       {showSplash && (
         <SplashScreen
@@ -285,7 +285,7 @@ export default function App() {
       </main>
 
       {/* Bottom Status Bar Footer */}
-      <footer className="h-10 bg-slate-900 dark:bg-slate-950 border-t border-slate-800 flex items-center justify-between px-6 sm:px-8 text-slate-400 shrink-0 text-[10px] font-bold uppercase tracking-widest">
+      <footer className="min-h-10 py-2 bg-slate-900 dark:bg-slate-950 border-t border-slate-800 flex items-center justify-between px-3 sm:px-8 text-slate-400 shrink-0 text-[10px] font-bold uppercase tracking-widest">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -294,7 +294,7 @@ export default function App() {
           <span className="opacity-20">|</span>
           <span className="hidden sm:inline">Realtime Database Sync</span>
         </div>
-        <span className="font-medium opacity-60 normal-case text-slate-300">
+        <span className="hidden min-[390px]:inline font-medium opacity-60 normal-case text-slate-300">
           WorkFlow Attendance © {currentTime.getFullYear()}
         </span>
       </footer>

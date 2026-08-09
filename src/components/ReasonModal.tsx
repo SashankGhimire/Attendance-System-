@@ -140,10 +140,10 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
   const presets = PRESET_REASONS[timingType] || PRESET_REASONS.early_in;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 max-w-lg w-full overflow-hidden transition-all transform animate-pop-scale">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4 animate-fade-in">
+      <div className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-100 dark:border-slate-800 transition-all transform animate-pop-scale">
         {/* Header Bar */}
-        <div className="relative px-6 pt-6 pb-5 bg-slate-900 dark:bg-slate-950 text-white border-b border-slate-800">
+        <div className="relative px-4 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-5 bg-slate-900 dark:bg-slate-950 text-white border-b border-slate-800">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div
@@ -179,7 +179,7 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5">
           {/* Preset Reasons Section */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
@@ -253,7 +253,7 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-2 grid grid-cols-1 min-[390px]:grid-cols-[auto_1fr] gap-2.5 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={onCancel}

@@ -43,7 +43,7 @@ export const DashboardCards = React.memo(function DashboardCards({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Overview Stat Cards Grid (4 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Card 1: Present Today */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors">
           <div className="flex items-center justify-between mb-3">

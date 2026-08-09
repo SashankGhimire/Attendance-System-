@@ -181,10 +181,10 @@ export const AttendanceTable = React.memo(function AttendanceTable({
           </div>
 
           {/* Action Buttons: Team Management & Export */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5">
             <button
               onClick={onOpenTeamManager}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
+              className="col-span-2 sm:col-span-1 min-h-11 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
               title="Manage Team Schedules & Add Members"
             >
               <Users className="w-4 h-4" />
@@ -200,7 +200,7 @@ export const AttendanceTable = React.memo(function AttendanceTable({
                 exportToCSV(filteredRecords);
                 onShowToast('success', 'CSV Exported', 'Attendance report saved as CSV.');
               }}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shadow-2xs"
+              className="min-h-11 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shadow-2xs"
             >
               <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               <span>Export CSV</span>
@@ -215,7 +215,7 @@ export const AttendanceTable = React.memo(function AttendanceTable({
                 exportToExcel(filteredRecords);
                 onShowToast('success', 'Excel Exported', 'Attendance report saved as Excel file.');
               }}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer shadow-2xs"
+              className="min-h-11 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer shadow-2xs"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Export Excel</span>
@@ -233,12 +233,12 @@ export const AttendanceTable = React.memo(function AttendanceTable({
               placeholder="Search team member, date or note..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full min-h-11 pl-10 pr-4 py-2 text-sm sm:text-xs font-medium bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+          <div className="grid grid-cols-2 min-[390px]:grid-cols-3 sm:flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto">
             {(['today', 'yesterday', 'this_week', 'this_month', 'all'] as const).map((filterKey) => {
               const labels: Record<DateFilterType, string> = {
                 today: 'Today',
@@ -251,7 +251,7 @@ export const AttendanceTable = React.memo(function AttendanceTable({
                 <button
                   key={filterKey}
                   onClick={() => setDateFilter(filterKey)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  className={`min-h-10 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                     dateFilter === filterKey
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
@@ -266,7 +266,7 @@ export const AttendanceTable = React.memo(function AttendanceTable({
       </div>
 
       {/* Mobile Card View */}
-      <div className="md:hidden p-4 space-y-3">
+      <div className="md:hidden p-3 sm:p-4 space-y-3">
         {filteredRecords.length === 0 ? (
           <div className="py-12 text-center text-slate-400">
             <div className="flex flex-col items-center justify-center gap-2">

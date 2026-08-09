@@ -51,8 +51,8 @@ export const AdminLoginModal = React.memo(function AdminLoginModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 max-w-md w-full overflow-hidden transition-all transform animate-pop-scale">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4 animate-fade-in">
+      <div className="relative max-h-[calc(100dvh-1rem)] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 max-w-md w-full transition-all transform animate-pop-scale">
         {/* Modal Header */}
         <div className="relative px-6 pt-6 pb-5 bg-slate-900 dark:bg-slate-950 text-white border-b border-slate-800">
           <div className="flex items-start justify-between gap-4">

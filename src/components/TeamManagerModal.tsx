@@ -117,8 +117,8 @@ export const TeamManagerModal = React.memo(function TeamManagerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
-      <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 max-w-2xl w-full my-8 overflow-hidden transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4 animate-fade-in overflow-y-auto">
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 max-w-2xl w-full my-2 sm:my-8 overflow-hidden transition-all">
         {/* Header Bar */}
         <div className="px-6 py-5 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3.5">
@@ -138,7 +138,7 @@ export const TeamManagerModal = React.memo(function TeamManagerModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[78vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 max-h-[calc(100dvh-7rem)] sm:max-h-[78vh] overflow-y-auto">
           {/* Top Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">

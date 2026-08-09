@@ -185,7 +185,9 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
     if (isClockedIn || isClockedOut || isProcessing) return;
 
     const timing = checkClockInTiming(currentTime, selectedEmployee.shift_start);
-    if (timing === 'early') {
+    if (timing === 'normal') {
+      void executeClockIn('Within 10-minute shift buffer');
+    } else if (timing === 'early') {
       setReasonModalState({
         isOpen: true,
         title: 'Early Clock-In Reason',
@@ -199,14 +201,6 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         title: 'Late Clock-In Reason',
         subtitle: `Clocking in past shift start time (${formatShiftTime(selectedEmployee.shift_start)}). Please provide a reason.`,
         timingType: 'late_in',
-        onConfirm: executeClockIn,
-      });
-    } else {
-      setReasonModalState({
-        isOpen: true,
-        title: 'Clock-In Reason',
-        subtitle: 'Select a reason or write a message before recording your Clock In.',
-        timingType: 'clock_in',
         onConfirm: executeClockIn,
       });
     }
@@ -247,7 +241,9 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
     if (!openRecord || isProcessing) return;
 
     const timing = checkClockOutTiming(currentTime, selectedEmployee.shift_end);
-    if (timing === 'early') {
+    if (timing === 'normal') {
+      void executeClockOut('Within 10-minute shift buffer');
+    } else if (timing === 'early') {
       setReasonModalState({
         isOpen: true,
         title: 'Early Clock-Out Reason',
@@ -261,14 +257,6 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         title: 'Overtime / Late Clock-Out Reason',
         subtitle: `Clocking out past shift end time (${formatShiftTime(selectedEmployee.shift_end)}). Please log reason or overtime note.`,
         timingType: 'late_out',
-        onConfirm: executeClockOut,
-      });
-    } else {
-      setReasonModalState({
-        isOpen: true,
-        title: 'Clock-Out Reason',
-        subtitle: 'Select a reason or write a message before recording your Clock Out.',
-        timingType: 'clock_out',
         onConfirm: executeClockOut,
       });
     }
@@ -342,7 +330,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 px-2 sm:px-0 sm:space-y-6">
+    <div className="max-w-2xl mx-auto space-y-3 sm:space-y-6">
       {/* Reason Prompt Modal */}
       {reasonModalState && (
         <ReasonModal
@@ -441,19 +429,19 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
       )}
 
       {/* Top Banner & Live Clock Card (Styled for light and dark modes) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6 transition-colors">
-        <div className="flex items-center gap-4 text-center sm:text-left">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900 shadow-2xs">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 sm:gap-6 transition-colors">
+        <div className="flex items-center gap-3 sm:gap-4 text-left">
+          <div className="hidden min-[360px]:flex w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900 shadow-2xs">
             <Clock className="w-6 h-6 stroke-[2.2]" />
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
               Live Workspace
             </span>
-            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight mt-0.5">
+            <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight mt-0.5">
               Attendance Terminal
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center justify-center sm:justify-start gap-1 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center justify-start gap-1 font-medium">
               <Calendar className="w-3.5 h-3.5" />
               <span>{formatDate(currentTime)}</span>
             </p>
@@ -461,18 +449,18 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         </div>
 
         {/* Live Clock Display Box - Responsive Light/Dark */}
-        <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 px-6 py-3 rounded-2xl text-center min-w-[180px]">
+        <div className="w-full sm:w-auto bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 px-4 sm:px-6 py-3 rounded-2xl text-center sm:min-w-[180px]">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
             Current Time
           </div>
-          <div className="text-2xl font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight">
+          <div className="text-3xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight">
             {formatTime(currentTime)}
           </div>
         </div>
       </div>
 
       {/* Main Team Member Attendance Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/80 dark:border-slate-800 relative overflow-hidden space-y-6 transition-colors">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs border border-slate-200/80 dark:border-slate-800 relative overflow-hidden space-y-5 sm:space-y-6 transition-colors">
         {/* Team Member Selector */}
         <div>
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
@@ -496,13 +484,13 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         </div>
 
         {/* Team Member Header */}
-        <div className="bg-slate-50/80 dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5 text-center sm:text-left">
+        <div className="bg-slate-50/80 dark:bg-slate-800/50 rounded-2xl p-4 sm:p-5 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 text-left">
             <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white font-bold text-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
               <User className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center justify-center sm:justify-start gap-1.5">
+              <div className="flex items-center justify-start gap-1.5">
                 <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{selectedEmployee.name}</h3>
               </div>
@@ -512,7 +500,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col items-center sm:items-end text-center sm:text-right">
+          <div className="hidden sm:flex flex-col items-end text-right">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Shift Schedule
             </span>
@@ -523,12 +511,12 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         </div>
 
         {/* Current Status Row */}
-        <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col min-[390px]:flex-row min-[390px]:items-center justify-between gap-2 p-4 bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Today's Status
           </span>
           <span
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border ${currentStatusBadgeClass}`}
+            className={`inline-flex max-w-full items-start gap-1.5 px-3.5 py-1.5 rounded-xl min-[390px]:rounded-full text-xs font-bold border ${currentStatusBadgeClass}`}
           >
             {isClockedIn ? (
               <CheckCircle2 className="w-4 h-4" />
@@ -537,7 +525,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
             ) : (
               <AlertCircle className="w-4 h-4" />
             )}
-            <span>{currentStatusText}</span>
+            <span className="break-words">{currentStatusText}</span>
           </span>
         </div>
 
@@ -559,7 +547,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         )}
 
         {/* Action Buttons: Clock In & Clock Out */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {/* Clock In or Overtime Clock In Button */}
           {!isClockedIn && shiftTimePassed ? (
             <button

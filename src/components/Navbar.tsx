@@ -59,20 +59,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-2xs transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={onReplaySplash}
               title="Click to replay splash screen"
-              className="flex items-center gap-2.5 group cursor-pointer text-left"
+              className="flex min-w-0 items-center gap-2.5 group cursor-pointer text-left"
             >
               <div className="w-8 h-8 bg-blue-600 rounded-xl text-white flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
                 <Clock className="w-5 h-5 stroke-[2.5]" />
               </div>
-              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-800 dark:text-slate-100">
-                WorkFlow <span className="text-blue-600 dark:text-blue-400">Attendance</span>
+              <span className="truncate font-extrabold text-base sm:text-xl tracking-tight text-slate-800 dark:text-slate-100">
+                WorkFlow <span className="hidden min-[360px]:inline text-blue-600 dark:text-blue-400">Attendance</span>
               </span>
             </button>
 
@@ -99,31 +99,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="order-3 flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700/60 w-full sm:w-auto justify-center sm:justify-start">
               <button
                 onClick={() => onTabChange('employee')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
+                className={`flex min-h-10 items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
                   activeTab === 'employee'
                     ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <UserCheck className="w-4 h-4" />
-                <span className="hidden sm:inline">Clock Station</span>
+                <span>Clock Station</span>
               </button>
               <button
                 onClick={() => onTabChange('admin')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
+                className={`flex min-h-10 items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
                   activeTab === 'admin'
                     ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <LayoutDashboard className="w-4 h-4" />
-                <span className="hidden sm:inline">Admin Dashboard</span>
+                <span>Dashboard</span>
               </button>
             </div>
           )}
 
           {/* Right Controls */}
-          <div className="order-2 flex flex-wrap items-center justify-end gap-2 sm:gap-4 w-full sm:w-auto">
+          <div className="order-2 flex shrink-0 items-center justify-end gap-1.5 sm:gap-4">
             {/* Dark Theme Toggle Button */}
             <button
               onClick={onToggleDarkMode}

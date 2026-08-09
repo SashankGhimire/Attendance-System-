@@ -238,7 +238,7 @@ export function calculateHoursWorked(clockInISO: string, clockOutISO: string): s
 /**
  * Automatically determines if an employee is 'Present' or 'Late'
  * based on their clock-in time and expected shift start time (e.g. "09:00").
- * Gives a 15-minute grace window.
+ * Gives a 10-minute grace window before marking the employee late.
  */
 export function determineClockInStatus(clockInDate: Date, shiftStartHHMM: string): 'Present' | 'Late' {
   const timing = checkClockInTiming(clockInDate, shiftStartHHMM);
@@ -255,9 +255,11 @@ export function checkClockInTiming(clockInDate: Date, shiftStartHHMM: string): '
   targetTime.setHours(shiftHour, shiftMinute, 0, 0);
 
   const diffMinutes = (clockInDate.getTime() - targetTime.getTime()) / (1000 * 60);
-  if (diffMinutes < 0) {
+  // Employees can clock in up to 10 minutes before or after shift start
+  // without needing to provide an exception reason.
+  if (diffMinutes < -10) {
     return 'early';
-  } else if (diffMinutes > 15) {
+  } else if (diffMinutes > 10) {
     return 'late';
   }
   return 'normal';
@@ -273,9 +275,10 @@ export function checkClockOutTiming(clockOutDate: Date, shiftEndHHMM: string): '
   targetTime.setHours(shiftHour, shiftMinute, 0, 0);
 
   const diffMinutes = (clockOutDate.getTime() - targetTime.getTime()) / (1000 * 60);
-  if (diffMinutes < -5) {
+  // Apply the same reason-free 10-minute buffer around shift end.
+  if (diffMinutes < -10) {
     return 'early';
-  } else if (diffMinutes > 5) {
+  } else if (diffMinutes > 10) {
     return 'late';
   }
   return 'normal';

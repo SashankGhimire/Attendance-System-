@@ -15,7 +15,7 @@ interface ToastProps {
 
 export const ToastContainer = React.memo(function ToastContainer({ toasts, onDismiss }: ToastProps) {
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full px-4 sm:px-0">
+    <div className="fixed inset-x-0 bottom-3 sm:bottom-5 sm:left-auto sm:right-5 z-50 flex flex-col gap-3 max-w-sm w-full mx-auto px-3 sm:px-0">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}

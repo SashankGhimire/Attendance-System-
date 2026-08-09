@@ -56,13 +56,13 @@ export const AdminResetSidePanel = React.memo(function AdminResetSidePanel({
       {/* Side Drawer Body */}
       <div className="relative w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col z-10 transition-transform animate-slide-left">
         {/* Header */}
-        <div className="p-6 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="p-4 sm:p-6 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
               <SlidersHorizontal className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h3 className="text-lg font-black tracking-tight text-white">System & Control Panel</h3>
+              <h3 className="text-base sm:text-lg font-black tracking-tight text-white">System & Control Panel</h3>
               <p className="text-xs text-slate-400">Database health & workspace maintenance</p>
             </div>
           </div>
@@ -76,7 +76,7 @@ export const AdminResetSidePanel = React.memo(function AdminResetSidePanel({
         </div>
 
         {/* Panel Content */}
-        <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 space-y-5 sm:space-y-6 overflow-y-auto">
           {/* Quick Diagnostics */}
           <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between">
