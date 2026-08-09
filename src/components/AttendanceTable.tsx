@@ -3,9 +3,9 @@ import { AttendanceRecord, DateFilterType } from '../types';
 import {
   formatTime,
   formatTableDate,
-  getTodayString,
   getYesterdayString,
   calculateHoursWorked,
+  isAttendanceRelevantForToday,
   exportToCSV,
   exportToExcel,
 } from '../lib/utils';
@@ -105,7 +105,6 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
 
   // Compute filtered records based on search query and date filter
   const filteredRecords = useMemo(() => {
-    const todayStr = getTodayString();
     const yesterdayStr = getYesterdayString();
 
     const now = new Date();
@@ -120,7 +119,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
     return records.filter((rec) => {
       const recordDate = new Date(rec.date + 'T00:00:00');
 
-      if (dateFilter === 'today' && rec.date !== todayStr) {
+      if (dateFilter === 'today' && !isAttendanceRelevantForToday(rec)) {
         return false;
       }
       if (dateFilter === 'yesterday' && rec.date !== yesterdayStr) {

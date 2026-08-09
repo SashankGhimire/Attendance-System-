@@ -7,6 +7,7 @@ import {
   determineClockInStatus,
   calculateHoursWorked,
   getTodayString,
+  findMostRecentOpenAttendanceRecord,
   checkClockInTiming,
   checkClockOutTiming,
   hasShiftTimePassed,
@@ -85,14 +86,17 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
   const todayStr = getTodayString(currentTime);
 
+  // Find the currently active attendance record, including overnight shifts from yesterday.
+  const openRecord = findMostRecentOpenAttendanceRecord(attendanceRecords, selectedEmployeeId);
   // Find today's attendance record for the selected team member
   const todayRecord = attendanceRecords.find(
     r => r.employee_id === selectedEmployeeId && r.date === todayStr
   );
+  const activeRecord = openRecord ?? todayRecord ?? null;
 
   // Status computation
-  const isClockedIn = !!todayRecord && !todayRecord.clock_out;
-  const isClockedOut = !!todayRecord && !!todayRecord.clock_out;
+  const isClockedIn = !!openRecord;
+  const isClockedOut = !openRecord && !!todayRecord && !!todayRecord.clock_out;
   const shiftTimePassed = hasShiftTimePassed(
     currentTime,
     selectedEmployee.shift_start,
@@ -102,17 +106,17 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
   let currentStatusText = 'Not Clocked In';
   let currentStatusBadgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
 
-  if (isClockedIn) {
-    if (todayRecord.status === 'Late') {
-      currentStatusText = `Late (Clocked in at ${formatTime(todayRecord.clock_in, false)})`;
+  if (activeRecord) {
+    if (activeRecord.status === 'Late') {
+      currentStatusText = `Late (Clocked in at ${formatTime(activeRecord.clock_in, false)})`;
       currentStatusBadgeClass = 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-    } else {
-      currentStatusText = `Present (Clocked in at ${formatTime(todayRecord.clock_in, false)})`;
+    } else if (!activeRecord.clock_out) {
+      currentStatusText = `Present (Clocked in at ${formatTime(activeRecord.clock_in, false)})`;
       currentStatusBadgeClass = 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+    } else {
+      currentStatusText = `Completed (${activeRecord.hours_worked || 'Done'})`;
+      currentStatusBadgeClass = 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
     }
-  } else if (isClockedOut) {
-    currentStatusText = `Completed (${todayRecord.hours_worked || 'Done'})`;
-    currentStatusBadgeClass = 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
   }
 
   // Core Execution of Clock In with Reason
@@ -172,14 +176,14 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
   // Core Execution of Clock Out with Reason
   const executeClockOut = async (reason?: string) => {
-    if (!todayRecord) return;
+    if (!openRecord) return;
     setIsProcessing(true);
     setActionSuccessAnim(null);
     try {
       const nowISO = new Date().toISOString();
-      const hoursWorked = calculateHoursWorked(todayRecord.clock_in, nowISO);
+      const hoursWorked = calculateHoursWorked(openRecord.clock_in, nowISO);
 
-      await recordClockOut(todayRecord.id, nowISO, hoursWorked, reason);
+      await recordClockOut(openRecord.id, nowISO, hoursWorked, reason);
       onRecordChange();
       setActionSuccessAnim('out');
 
@@ -200,7 +204,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
   // Click Handler for Clock Out
   const handleClockOutClick = () => {
-    if (!todayRecord || !isClockedIn || isProcessing) return;
+    if (!openRecord || isProcessing) return;
 
     const timing = checkClockOutTiming(currentTime, selectedEmployee.shift_end);
     if (timing === 'early') {
@@ -235,8 +239,8 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         setIsProcessing(true);
         setActionSuccessAnim(null);
         try {
-          if (todayRecord) {
-            await reclockRecord(todayRecord.id, reason);
+          if (activeRecord) {
+            await reclockRecord(activeRecord.id, reason);
           } else {
             const status = determineClockInStatus(new Date(), selectedEmployee.shift_start);
             await recordClockIn(selectedEmployee, status, `Reclock: ${reason}`);
@@ -486,11 +490,11 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         </div>
 
         {/* Reason Note Indicator if present on today's record */}
-        {todayRecord?.reason && (
+        {activeRecord?.reason && (
           <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>
-              <strong>Note logged:</strong> "{todayRecord.reason}"
+              <strong>Note logged:</strong> "{activeRecord.reason}"
             </span>
           </div>
         )}
@@ -550,7 +554,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         </div>
 
         {/* Reclock Shift Option if team member clocked out or needs re-entry */}
-        {todayRecord && (
+        {activeRecord && (
           <div className="pt-2">
             <button
               onClick={handleReclockClick}

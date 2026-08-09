@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { AttendanceRecord, Employee } from '../types';
-import { DEFAULT_EMPLOYEES, getTodayString, getYesterdayString } from './utils';
+import { DEFAULT_EMPLOYEES, findMostRecentOpenAttendanceRecord, getTodayString, getYesterdayString } from './utils';
 
 function normalizeSupabaseProjectUrl(url: string): string {
   const trimmed = (url || '').trim();
@@ -116,6 +116,7 @@ export async function probeDataSource(): Promise<DataSourceState> {
 
 const LOCAL_STORAGE_RECORDS_KEY = 'workflow_attendance_records';
 const LOCAL_STORAGE_EMPLOYEES_KEY = 'workflow_team_employees';
+const pendingClockIns = new Map<string, Promise<AttendanceRecord>>();
 
 function getLocalEmployees(): Employee[] {
   try {
@@ -328,52 +329,78 @@ export async function recordClockIn(
   status: 'Present' | 'Late',
   reason?: string
 ): Promise<AttendanceRecord> {
-  const clockInTime = new Date().toISOString();
-  const todayStr = getTodayString();
-
-  const newRecord: AttendanceRecord = {
-    id: `rec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    employee_id: employee.id,
-    employee_name: employee.name,
-    date: todayStr,
-    clock_in: clockInTime,
-    clock_out: null,
-    hours_worked: null,
-    status: status,
-    reason: reason || null,
-    created_at: clockInTime,
-  };
-
-  const client = supabase;
-  if (canUseSupabase() && client) {
-    try {
-      const { data, error } = await client
-        .from('attendance')
-        .insert({
-          employee_id: employee.id,
-          employee_name: employee.name,
-          date: todayStr,
-          clock_in: clockInTime,
-          status: status,
-          reason: reason || null,
-        })
-        .select()
-        .single();
-
-      if (!error && data) {
-        markSupabaseHealth(true);
-        return data as AttendanceRecord;
-      }
-    } catch (err) {
-      markSupabaseHealth(false);
-      console.warn('Supabase clock-in error', err);
-    }
+  const existingPending = pendingClockIns.get(employee.id);
+  if (existingPending) {
+    return existingPending;
   }
 
-  const currentRecords = getLocalRecords();
-  const updatedRecords = [newRecord, ...currentRecords];
-  saveLocalRecords(updatedRecords);
-  return newRecord;
+  const clockInOperation = (async () => {
+    const clockInTime = new Date().toISOString();
+    const todayStr = getTodayString();
+
+    const currentRecords = await fetchAttendance();
+    const existingOpenRecord = findMostRecentOpenAttendanceRecord(currentRecords, employee.id);
+    if (existingOpenRecord) {
+      return existingOpenRecord;
+    }
+
+    const newRecord: AttendanceRecord = {
+      id: `rec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      employee_id: employee.id,
+      employee_name: employee.name,
+      date: todayStr,
+      clock_in: clockInTime,
+      clock_out: null,
+      hours_worked: null,
+      status: status,
+      reason: reason || null,
+      created_at: clockInTime,
+    };
+
+    const client = supabase;
+    if (canUseSupabase() && client) {
+      try {
+        const { data, error } = await client
+          .from('attendance')
+          .insert({
+            employee_id: employee.id,
+            employee_name: employee.name,
+            date: todayStr,
+            clock_in: clockInTime,
+            status: status,
+            reason: reason || null,
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          markSupabaseHealth(true);
+          return data as AttendanceRecord;
+        }
+      } catch (err) {
+        markSupabaseHealth(false);
+        console.warn('Supabase clock-in error', err);
+      }
+    }
+
+    const localRecords = getLocalRecords();
+    const existingLocalOpenRecord = findMostRecentOpenAttendanceRecord(localRecords, employee.id);
+    if (existingLocalOpenRecord) {
+      return existingLocalOpenRecord;
+    }
+
+    const updatedRecords = [newRecord, ...localRecords];
+    saveLocalRecords(updatedRecords);
+    return newRecord;
+  })();
+
+  pendingClockIns.set(employee.id, clockInOperation);
+
+  try {
+    return await clockInOperation;
+  } finally {
+    pendingClockIns.delete(employee.id);
+  }
 }
 
 /**

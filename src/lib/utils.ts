@@ -90,10 +90,60 @@ export function getTodayString(d: Date = new Date()): string {
 /**
  * Returns yesterday date formatted as YYYY-MM-DD
  */
-export function getYesterdayString(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return getTodayString(d);
+export function getYesterdayString(d: Date = new Date()): string {
+  const date = new Date(d);
+  date.setDate(date.getDate() - 1);
+  return getTodayString(date);
+}
+
+/**
+ * Finds the most recent open attendance record for a specific employee.
+ */
+export function findMostRecentOpenAttendanceRecord(records: AttendanceRecord[], employeeId: string): AttendanceRecord | null {
+  let latestOpenRecord: AttendanceRecord | null = null;
+
+  for (const record of records) {
+    if (record.employee_id !== employeeId || record.clock_out) {
+      continue;
+    }
+
+    if (!latestOpenRecord) {
+      latestOpenRecord = record;
+      continue;
+    }
+
+    const recordTime = new Date(record.clock_in).getTime();
+    const latestTime = new Date(latestOpenRecord.clock_in).getTime();
+
+    if (!isNaN(recordTime) && (isNaN(latestTime) || recordTime > latestTime)) {
+      latestOpenRecord = record;
+    }
+  }
+
+  return latestOpenRecord;
+}
+
+/**
+ * Returns whether a record should appear in the default "today" admin view.
+ * This keeps overnight open shifts visible before and after they clock out.
+ */
+export function isAttendanceRelevantForToday(record: AttendanceRecord, currentDate: Date = new Date()): boolean {
+  const todayStr = getTodayString(currentDate);
+  const yesterdayStr = getYesterdayString(currentDate);
+
+  if (record.date === todayStr) {
+    return true;
+  }
+
+  if (!record.clock_out && record.date === yesterdayStr) {
+    return true;
+  }
+
+  if (record.clock_out && getTodayString(new Date(record.clock_out)) === todayStr) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

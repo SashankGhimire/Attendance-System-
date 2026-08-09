@@ -1,6 +1,6 @@
 import React from 'react';
 import { AttendanceRecord, Employee } from '../types';
-import { getTodayString, formatTime, formatDate } from '../lib/utils';
+import { formatTime, formatDate, isAttendanceRelevantForToday } from '../lib/utils';
 import { UserCheck, Clock, AlertTriangle, CheckCircle, User, MessageSquare } from 'lucide-react';
 
 interface DashboardCardsProps {
@@ -14,17 +14,16 @@ export const DashboardCards: React.FC<DashboardCardsProps> = ({
   employees,
   currentTime,
 }) => {
-  const todayStr = getTodayString(currentTime);
-
-  // Filter today's records
-  const todayRecords = records.filter(r => r.date === todayStr);
+  // Include overnight records that started yesterday but are still open or completed today.
+  const todayRecords = records.filter(r => isAttendanceRelevantForToday(r, currentTime));
+  const openRecords = records.filter(r => !r.clock_out);
 
   const presentTodayCount = todayRecords.filter(r => r.status === 'Present').length;
   const lateTodayRecords = todayRecords.filter(r => r.status === 'Late');
   const lateTodayCount = lateTodayRecords.length;
   
   // List of team members currently working (clocked in and not clocked out yet)
-  const currentlyWorkingRecords = todayRecords.filter(r => !r.clock_out);
+  const currentlyWorkingRecords = openRecords;
   const currentlyWorkingCount = currentlyWorkingRecords.length;
   const completedTodayCount = todayRecords.filter(r => !!r.clock_out).length;
 
