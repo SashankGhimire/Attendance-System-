@@ -25,13 +25,13 @@ interface TeamManagerModalProps {
   onShowToast: (type: 'success' | 'error' | 'info', title: string, desc?: string) => void;
 }
 
-export const TeamManagerModal: React.FC<TeamManagerModalProps> = ({
+export const TeamManagerModal = React.memo(function TeamManagerModal({
   isOpen,
   onClose,
   employees,
   onEmployeesChange,
   onShowToast,
-}) => {
+}: TeamManagerModalProps) {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -326,4 +326,4 @@ export const TeamManagerModal: React.FC<TeamManagerModalProps> = ({
       </div>
     </div>
   );
-};
+});

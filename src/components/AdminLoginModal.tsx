@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Shield, X, Lock, User, Eye, EyeOff, ArrowRight, ShieldCheck } from 'lucide-react';
 
 interface AdminLoginModalProps {
@@ -8,16 +8,25 @@ interface AdminLoginModalProps {
   onErrorToast: (title: string, desc?: string) => void;
 }
 
-export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
+export const AdminLoginModal = React.memo(function AdminLoginModal({
   isOpen,
   onClose,
   onLoginSuccess,
   onErrorToast,
-}) => {
+}: AdminLoginModalProps) {
   const [username, setUsername] = useState('Admin');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (submitTimerRef.current) {
+        clearTimeout(submitTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -25,7 +34,11 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    if (submitTimerRef.current) {
+      clearTimeout(submitTimerRef.current);
+    }
+
+    submitTimerRef.current = setTimeout(() => {
       if (username.trim() === 'Admin' && password === 'Admin@123') {
         onLoginSuccess();
         setPassword('');
@@ -132,4 +145,4 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       </div>
     </div>
   );
-};
+});

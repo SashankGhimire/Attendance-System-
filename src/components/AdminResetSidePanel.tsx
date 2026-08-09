@@ -22,7 +22,7 @@ interface AdminResetSidePanelProps {
   onShowToast: (type: 'success' | 'error' | 'info', title: string, desc?: string) => void;
 }
 
-export const AdminResetSidePanel: React.FC<AdminResetSidePanelProps> = ({
+export const AdminResetSidePanel = React.memo(function AdminResetSidePanel({
   isOpen,
   onClose,
   records,
@@ -30,7 +30,7 @@ export const AdminResetSidePanel: React.FC<AdminResetSidePanelProps> = ({
   onDataReset,
   onOpenTeamManager,
   onShowToast,
-}) => {
+}: AdminResetSidePanelProps) {
   const [confirmingClearLogs, setConfirmingClearLogs] = useState(false);
 
   if (!isOpen) return null;
@@ -189,4 +189,4 @@ export const AdminResetSidePanel: React.FC<AdminResetSidePanelProps> = ({
       </div>
     </div>
   );
-};
+});

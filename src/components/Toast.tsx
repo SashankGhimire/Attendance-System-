@@ -13,7 +13,7 @@ interface ToastProps {
   onDismiss: (id: string) => void;
 }
 
-export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
+export const ToastContainer = React.memo(function ToastContainer({ toasts, onDismiss }: ToastProps) {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full px-4 sm:px-0">
       {toasts.map((toast) => (
@@ -21,7 +21,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
       ))}
     </div>
   );
-};
+});
 
 const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void }> = ({
   toast,

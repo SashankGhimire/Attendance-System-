@@ -3,11 +3,12 @@ import { AttendanceRecord, DateFilterType } from '../types';
 import {
   formatTime,
   formatTableDate,
-  getYesterdayString,
   calculateHoursWorked,
-  isAttendanceRelevantForToday,
+  composeAttendanceReasons,
+  isAttendanceInDateFilter,
   exportToCSV,
   exportToExcel,
+  parseAttendanceReasons,
 } from '../lib/utils';
 import { deleteAttendanceRecord, updateAttendanceRecord } from '../lib/supabase';
 import { DataSourceState } from '../lib/supabase';
@@ -32,19 +33,40 @@ import {
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];
+  currentDateKey: string;
   onRecordDeleted: () => void;
   onOpenTeamManager: () => void;
   onShowToast: (type: 'success' | 'error' | 'info', title: string, desc?: string) => void;
   dataSourceState: DataSourceState;
 }
 
-export const AttendanceTable: React.FC<AttendanceTableProps> = ({
+function ReasonValue({ label, value }: { label?: string; value: string | null }) {
+  return (
+    <div>
+      {label && <p className="text-[10px] uppercase tracking-wider text-slate-400 font-black mb-1">{label}</p>}
+      {value ? (
+        <div
+          className="inline-flex items-start gap-1.5 p-2 bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800/80 rounded-xl text-[11px] font-medium leading-relaxed whitespace-normal break-words shadow-2xs w-full"
+          title={value}
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <span className="line-clamp-2 hover:line-clamp-none transition-all">{value}</span>
+        </div>
+      ) : (
+        <span className="text-slate-300 dark:text-slate-600 font-mono text-xs">--</span>
+      )}
+    </div>
+  );
+}
+
+export const AttendanceTable = React.memo(function AttendanceTable({
   records,
+  currentDateKey,
   onRecordDeleted,
   onOpenTeamManager,
   onShowToast,
   dataSourceState,
-}) => {
+}: AttendanceTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilterType>('today');
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
@@ -54,7 +76,8 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
   const [editStatus, setEditStatus] = useState<'Present' | 'Late'>('Present');
   const [editClockIn, setEditClockIn] = useState('');
   const [editClockOut, setEditClockOut] = useState('');
-  const [editReason, setEditReason] = useState('');
+  const [editClockInReason, setEditClockInReason] = useState('');
+  const [editClockOutReason, setEditClockOutReason] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Helper to convert ISO time to datetime-local string format
@@ -71,7 +94,9 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
     setEditStatus(rec.status === 'Late' ? 'Late' : 'Present');
     setEditClockIn(toDatetimeLocal(rec.clock_in));
     setEditClockOut(toDatetimeLocal(rec.clock_out));
-    setEditReason(rec.reason || '');
+    const { clockInReason, clockOutReason } = parseAttendanceReasons(rec.reason);
+    setEditClockInReason(clockInReason || '');
+    setEditClockOutReason(clockOutReason || '');
   };
 
   const handleSaveEdit = async () => {
@@ -89,7 +114,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
         clock_in: clockInISO,
         clock_out: clockOutISO,
         hours_worked: hoursWorked,
-        reason: editReason.trim() ? editReason.trim() : null,
+        reason: composeAttendanceReasons(editClockInReason, editClockOutReason),
         date: dateStr,
       });
 
@@ -105,46 +130,24 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
 
   // Compute filtered records based on search query and date filter
   const filteredRecords = useMemo(() => {
-    const yesterdayStr = getYesterdayString();
-
-    const now = new Date();
-    // Start of week
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    // Start of month
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const now = new Date(`${currentDateKey}T12:00:00`);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return records.filter((rec) => {
-      const recordDate = new Date(rec.date + 'T00:00:00');
+      if (!isAttendanceInDateFilter(rec, dateFilter, now)) return false;
 
-      if (dateFilter === 'today' && !isAttendanceRelevantForToday(rec)) {
-        return false;
-      }
-      if (dateFilter === 'yesterday' && rec.date !== yesterdayStr) {
-        return false;
-      }
-      if (dateFilter === 'this_week' && recordDate < startOfWeek) {
-        return false;
-      }
-      if (dateFilter === 'this_month' && recordDate < startOfMonth) {
-        return false;
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      if (normalizedQuery) {
         const formattedD = formatTableDate(rec.date).toLowerCase();
-        const matchesName = rec.employee_name.toLowerCase().includes(q);
-        const matchesDate = rec.date.includes(q) || formattedD.includes(q);
-        const matchesStatus = rec.status.toLowerCase().includes(q);
-        const matchesReason = rec.reason?.toLowerCase().includes(q) || false;
+        const matchesName = rec.employee_name.toLowerCase().includes(normalizedQuery);
+        const matchesDate = rec.date.includes(normalizedQuery) || formattedD.includes(normalizedQuery);
+        const matchesStatus = rec.status.toLowerCase().includes(normalizedQuery);
+        const matchesReason = rec.reason?.toLowerCase().includes(normalizedQuery) || false;
         return matchesName || matchesDate || matchesStatus || matchesReason;
       }
 
       return true;
     });
-  }, [records, dateFilter, searchQuery]);
+  }, [records, dateFilter, searchQuery, currentDateKey]);
 
   const handleDelete = async (recordId: string, employeeName: string) => {
     if (!confirm(`Are you sure you want to delete the attendance record for ${employeeName}?`)) {
@@ -279,6 +282,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
         ) : (
           filteredRecords.map((record) => {
             const isActive = !record.clock_out;
+            const { clockInReason, clockOutReason } = parseAttendanceReasons(record.reason);
 
             return (
               <article
@@ -343,16 +347,9 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-black mb-1">Reason / Note</p>
-                  {record.reason ? (
-                    <div className="inline-flex items-start gap-1.5 p-2 bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800/80 rounded-xl text-[11px] font-medium leading-relaxed whitespace-normal break-words shadow-2xs w-full">
-                      <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                      <span>{record.reason}</span>
-                    </div>
-                  ) : (
-                    <span className="text-slate-300 dark:text-slate-600 font-mono text-xs">--</span>
-                  )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <ReasonValue label="Clock In Reason" value={clockInReason} />
+                  <ReasonValue label="Clock Out Reason" value={clockOutReason} />
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">
@@ -391,14 +388,15 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
               <th className="py-3.5 px-4">Clock Out</th>
               <th className="py-3.5 px-4">Hours</th>
               <th className="py-3.5 px-4">Status</th>
-              <th className="py-3.5 px-4">Reason / Note</th>
+              <th className="py-3.5 px-4">Clock In Reason</th>
+              <th className="py-3.5 px-4">Clock Out Reason</th>
               <th className="py-3.5 px-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm font-medium text-slate-800 dark:text-slate-200">
             {filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400">
+                <td colSpan={9} className="py-12 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Calendar className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                     <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -413,6 +411,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
             ) : (
               filteredRecords.map((record) => {
                 const isActive = !record.clock_out;
+                const { clockInReason, clockOutReason } = parseAttendanceReasons(record.reason);
 
                 return (
                   <tr
@@ -474,19 +473,11 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
                       </span>
                     </td>
 
-                    {/* Reason / Note formatted cleanly so long notes fit */}
                     <td className="py-3 px-4 text-xs font-medium text-slate-600 dark:text-slate-400 max-w-[220px]">
-                      {record.reason ? (
-                        <div
-                          className="inline-flex items-start gap-1.5 p-2 bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800/80 rounded-xl text-[11px] font-medium leading-relaxed whitespace-normal break-words shadow-2xs w-full"
-                          title={record.reason}
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2 hover:line-clamp-none transition-all">{record.reason}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 dark:text-slate-600 font-mono">--</span>
-                      )}
+                      <ReasonValue value={clockInReason} />
+                    </td>
+                    <td className="py-3 px-4 text-xs font-medium text-slate-600 dark:text-slate-400 max-w-[220px]">
+                      <ReasonValue value={clockOutReason} />
                     </td>
 
                     {/* Actions: Edit & Delete Icons */}
@@ -631,18 +622,31 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 </div>
               </div>
 
-              {/* Reason / Note */}
-              <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Reason / Note
+                  Clock In Reason
                 </label>
                 <input
                   type="text"
-                  value={editReason}
-                  onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="e.g. Traffic delay, Overtime shift, etc."
+                  value={editClockInReason}
+                  onChange={(e) => setEditClockInReason(e.target.value)}
+                  placeholder="e.g. Started scheduled shift"
                   className="w-full px-3 py-2 font-medium bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Clock Out Reason
+                  </label>
+                  <input
+                    type="text"
+                    value={editClockOutReason}
+                    onChange={(e) => setEditClockOutReason(e.target.value)}
+                    placeholder="e.g. Shift completed"
+                    className="w-full px-3 py-2 font-medium bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -674,4 +678,4 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
       )}
     </div>
   );
-};
+});

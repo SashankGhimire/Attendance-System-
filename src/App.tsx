@@ -17,6 +17,7 @@ import { AdminResetSidePanel } from './components/AdminResetSidePanel';
 import { ToastContainer } from './components/Toast';
 import { Shield, Lock } from 'lucide-react';
 import { DataSourceState, isSupabaseConfigured, probeDataSource } from './lib/supabase';
+import { getTodayString } from './lib/utils';
 
 export default function App() {
   // Splash Screen State
@@ -88,6 +89,46 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const handleTabChange = useCallback((tab: 'employee' | 'admin') => {
+    setActiveTab(tab);
+  }, []);
+
+  const handleToggleDarkMode = useCallback(() => {
+    setIsDarkMode(prev => !prev);
+  }, []);
+
+  const handleOpenAdminModal = useCallback(() => {
+    setIsAdminModalOpen(true);
+  }, []);
+
+  const handleCloseAdminModal = useCallback(() => {
+    setIsAdminModalOpen(false);
+  }, []);
+
+  const handleOpenSidePanel = useCallback(() => {
+    setIsSidePanelOpen(true);
+  }, []);
+
+  const handleCloseSidePanel = useCallback(() => {
+    setIsSidePanelOpen(false);
+  }, []);
+
+  const handleOpenTeamManager = useCallback(() => {
+    setIsTeamManagerOpen(true);
+  }, []);
+
+  const handleCloseTeamManager = useCallback(() => {
+    setIsTeamManagerOpen(false);
+  }, []);
+
+  const handleReplaySplash = useCallback(() => {
+    setShowSplash(true);
+  }, []);
+
+  const handleAdminLoginError = useCallback((title: string, desc?: string) => {
+    addToast('error', title, desc);
+  }, [addToast]);
+
   // Update Live Clock every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -98,14 +139,18 @@ export default function App() {
 
   // Load initial employees and attendance records
   const loadData = useCallback(async () => {
-    const fetchedEmps = await fetchEmployees();
-    const fetchedRecs = await fetchAttendance();
+    const [fetchedEmps, fetchedRecs] = await Promise.all([
+      fetchEmployees(),
+      fetchAttendance(),
+    ]);
     setEmployees(fetchedEmps);
     setRecords(fetchedRecs);
   }, []);
 
   useEffect(() => {
     let isMounted = true;
+    let unsubscribeAttendance = () => {};
+    let unsubscribeEmployees = () => {};
 
     const initializeData = async () => {
       const state = await probeDataSource();
@@ -116,25 +161,27 @@ export default function App() {
 
       setDataSourceState(state);
 
-      if (state.mode === 'supabase') {
-        localStorage.removeItem('workflow_attendance_records');
-        localStorage.removeItem('workflow_team_employees');
+      const [fetchedEmps, fetchedRecs] = await Promise.all([
+        fetchEmployees(),
+        fetchAttendance(),
+      ]);
+
+      if (!isMounted) {
+        return;
       }
 
-      await loadData();
+      setEmployees(fetchedEmps);
+      setRecords(fetchedRecs);
+
+      unsubscribeAttendance = subscribeToRealtimeAttendance(updatedRecords => {
+        if (isMounted) setRecords(updatedRecords);
+      });
+      unsubscribeEmployees = subscribeToRealtimeEmployees(updatedEmployees => {
+        if (isMounted) setEmployees(updatedEmployees);
+      });
     };
 
-    initializeData();
-
-    // Subscribe to Realtime attendance updates
-    const unsubscribeAttendance = subscribeToRealtimeAttendance(updatedRecords => {
-      setRecords(updatedRecords);
-    });
-
-    // Subscribe to Realtime employee team updates
-    const unsubscribeEmployees = subscribeToRealtimeEmployees(updatedEmployees => {
-      setEmployees(updatedEmployees);
-    });
+    void initializeData();
 
     return () => {
       isMounted = false;
@@ -143,41 +190,23 @@ export default function App() {
     };
   }, [loadData]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkDataSource = async () => {
-      const state = await probeDataSource();
-      if (isMounted) {
-        setDataSourceState(state);
-      }
-    };
-
-    checkDataSource();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const handleCompleteSplash = useCallback(() => {
     setShowSplash(false);
   }, []);
 
-  // Admin Authentication Handlers
-  const handleAdminLoginSuccess = () => {
+  const handleAdminLoginSuccess = useCallback(() => {
     setAdmin({ username: 'Admin', authenticated: true });
     setActiveTab('admin');
     addToast('success', 'Logged in as Admin', 'Welcome to the Admin Dashboard');
-  };
+  }, [addToast]);
 
-  const handleAdminLogout = () => {
+  const handleAdminLogout = useCallback(() => {
     setAdmin({ username: 'Admin', authenticated: false });
     setActiveTab('employee');
     setIsTeamManagerOpen(false);
     setIsSidePanelOpen(false);
     addToast('info', 'Logged Out', 'You have been logged out of Admin mode');
-  };
+  }, [addToast]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-100 selection:text-blue-900 flex flex-col transition-colors duration-200">
@@ -195,13 +224,13 @@ export default function App() {
         admin={admin}
         activeTab={activeTab}
         isDarkMode={isDarkMode}
-        onTabChange={tab => setActiveTab(tab)}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        onTabChange={handleTabChange}
+        onToggleDarkMode={handleToggleDarkMode}
+        onOpenAdminModal={handleOpenAdminModal}
         onAdminLogout={handleAdminLogout}
-        onOpenSidePanel={() => setIsSidePanelOpen(true)}
-        onOpenTeamManager={() => setIsTeamManagerOpen(true)}
-        onReplaySplash={() => setShowSplash(true)}
+        onOpenSidePanel={handleOpenSidePanel}
+        onOpenTeamManager={handleOpenTeamManager}
+        onReplaySplash={handleReplaySplash}
       />
 
       {/* 3. Main View Area */}
@@ -226,8 +255,9 @@ export default function App() {
               />
               <AttendanceTable
                 records={records}
+                currentDateKey={getTodayString(currentTime)}
                 onRecordDeleted={loadData}
-                onOpenTeamManager={() => setIsTeamManagerOpen(true)}
+                onOpenTeamManager={handleOpenTeamManager}
                 onShowToast={addToast}
                 dataSourceState={dataSourceState}
               />
@@ -272,15 +302,15 @@ export default function App() {
       {/* 4. Admin Login Modal */}
       <AdminLoginModal
         isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
+        onClose={handleCloseAdminModal}
         onLoginSuccess={handleAdminLoginSuccess}
-        onErrorToast={(title, desc) => addToast('error', title, desc)}
+        onErrorToast={handleAdminLoginError}
       />
 
       {/* 5. Team Manager Modal */}
       <TeamManagerModal
         isOpen={isTeamManagerOpen}
-        onClose={() => setIsTeamManagerOpen(false)}
+        onClose={handleCloseTeamManager}
         employees={employees}
         onEmployeesChange={loadData}
         onShowToast={addToast}
@@ -289,11 +319,11 @@ export default function App() {
       {/* 6. Admin Reset Side Panel */}
       <AdminResetSidePanel
         isOpen={isSidePanelOpen}
-        onClose={() => setIsSidePanelOpen(false)}
+        onClose={handleCloseSidePanel}
         records={records}
         employees={employees}
         onDataReset={loadData}
-        onOpenTeamManager={() => setIsTeamManagerOpen(true)}
+        onOpenTeamManager={handleOpenTeamManager}
         onShowToast={addToast}
       />
 

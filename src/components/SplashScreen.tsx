@@ -6,9 +6,10 @@ interface SplashScreenProps {
   duration?: number; // duration in ms, default 1800ms
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, duration = 1800 }) => {
+export const SplashScreen = React.memo(function SplashScreen({ onComplete, duration = 1800 }: SplashScreenProps) {
   const [progress, setProgress] = useState(0);
   const onCompleteRef = useRef(onComplete);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -23,7 +24,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, duration
 
       if (elapsed >= duration) {
         clearInterval(interval);
-        setTimeout(() => {
+        if (completionTimerRef.current) {
+          clearTimeout(completionTimerRef.current);
+        }
+        completionTimerRef.current = setTimeout(() => {
           if (onCompleteRef.current) {
             onCompleteRef.current();
           }
@@ -31,7 +35,12 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, duration
       }
     }, 25);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
+    };
   }, [duration]);
 
   return (
@@ -78,4 +87,4 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, duration
       </div>
     </div>
   );
-};
+});

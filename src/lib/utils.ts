@@ -1,4 +1,4 @@
-import { AttendanceRecord } from '../types';
+import { AttendanceRecord, DateFilterType } from '../types';
 
 /**
  * Default preset employees
@@ -124,6 +124,41 @@ export function findMostRecentOpenAttendanceRecord(records: AttendanceRecord[], 
 }
 
 /**
+ * Returns only the latest record per employee from an arbitrary record list.
+ */
+export function getMostRecentRecordPerEmployee(records: AttendanceRecord[]): AttendanceRecord[] {
+  const latestByEmployee = new Map<string, AttendanceRecord>();
+
+  for (const record of records) {
+    const existing = latestByEmployee.get(record.employee_id);
+    if (!existing) {
+      latestByEmployee.set(record.employee_id, record);
+      continue;
+    }
+
+    const recordTime = new Date(record.clock_in).getTime();
+    const existingTime = new Date(existing.clock_in).getTime();
+
+    if (!isNaN(recordTime) && (isNaN(existingTime) || recordTime > existingTime)) {
+      latestByEmployee.set(record.employee_id, record);
+    }
+  }
+
+  return Array.from(latestByEmployee.values()).sort((a, b) => {
+    const aTime = new Date(a.clock_in).getTime();
+    const bTime = new Date(b.clock_in).getTime();
+    return bTime - aTime;
+  });
+}
+
+/**
+ * Returns one open record per employee, keeping only the most recent open session.
+ */
+export function getUniqueCurrentlyWorkingRecords(records: AttendanceRecord[]): AttendanceRecord[] {
+  return getMostRecentRecordPerEmployee(records.filter(record => !record.clock_out));
+}
+
+/**
  * Returns whether a record should appear in the default "today" admin view.
  * This keeps overnight open shifts visible before and after they clock out.
  */
@@ -144,6 +179,37 @@ export function isAttendanceRelevantForToday(record: AttendanceRecord, currentDa
   }
 
   return false;
+}
+
+/**
+ * Match Admin date filters against the record's original Clock In date.
+ * Date keys use the same local-calendar convention as getTodayString(), so
+ * overnight Clock Outs never move a record into the following day.
+ */
+export function isAttendanceInDateFilter(
+  record: AttendanceRecord,
+  filter: DateFilterType,
+  currentDate: Date = new Date()
+): boolean {
+  if (filter === 'all') return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(record.date)) return false;
+
+  const todayKey = getTodayString(currentDate);
+  if (filter === 'today') return record.date === todayKey;
+  if (filter === 'yesterday') return record.date === getYesterdayString(currentDate);
+
+  if (filter === 'this_week') {
+    const weekStart = new Date(currentDate);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    return record.date >= getTodayString(weekStart) && record.date <= getTodayString(weekEnd);
+  }
+
+  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+  return record.date >= getTodayString(monthStart) && record.date <= getTodayString(monthEnd);
 }
 
 /**
@@ -236,20 +302,66 @@ export function hasShiftTimePassed(currentTime: Date, shiftStartHHMM: string, sh
   }
 }
 
+const CLOCK_OUT_REASON_MARKER = ' | Out Note: ';
+const CLOCK_OUT_ONLY_PREFIX = 'Out Note: ';
+
+/** Decode separate reasons stored in the existing single reason column. */
+export function parseAttendanceReasons(reason?: string | null): {
+  clockInReason: string | null;
+  clockOutReason: string | null;
+} {
+  const value = reason?.trim();
+  if (!value) return { clockInReason: null, clockOutReason: null };
+
+  if (value.startsWith(CLOCK_OUT_ONLY_PREFIX)) {
+    return {
+      clockInReason: null,
+      clockOutReason: value.slice(CLOCK_OUT_ONLY_PREFIX.length).trim() || null,
+    };
+  }
+
+  const markerIndex = value.lastIndexOf(CLOCK_OUT_REASON_MARKER);
+  if (markerIndex === -1) {
+    return { clockInReason: value, clockOutReason: null };
+  }
+
+  return {
+    clockInReason: value.slice(0, markerIndex).trim() || null,
+    clockOutReason: value.slice(markerIndex + CLOCK_OUT_REASON_MARKER.length).trim() || null,
+  };
+}
+
+/** Encode separate reasons without changing the existing Supabase schema. */
+export function composeAttendanceReasons(
+  clockInReason?: string | null,
+  clockOutReason?: string | null
+): string | null {
+  const clockIn = clockInReason?.trim() || '';
+  const clockOut = clockOutReason?.trim() || '';
+  if (clockIn && clockOut) return `${clockIn}${CLOCK_OUT_REASON_MARKER}${clockOut}`;
+  if (clockIn) return clockIn;
+  if (clockOut) return `${CLOCK_OUT_ONLY_PREFIX}${clockOut}`;
+  return null;
+}
+
 /**
  * Export attendance records to CSV file
  */
 export function exportToCSV(records: AttendanceRecord[], filename = 'attendance_report.csv') {
-  const headers = ['Employee Name', 'Date', 'Clock In', 'Clock Out', 'Hours Worked', 'Status', 'Reason'];
-  const rows = records.map(r => [
-    `"${r.employee_name}"`,
-    `"${r.date}"`,
-    `"${formatTime(r.clock_in, false)}"`,
-    `"${r.clock_out ? formatTime(r.clock_out, false) : '-'}"`,
-    `"${r.hours_worked || 'In Progress'}"`,
-    `"${r.status}"`,
-    `"${r.reason || '-'}"`
-  ]);
+  const headers = ['Employee Name', 'Date', 'Clock In', 'Clock Out', 'Hours Worked', 'Status', 'Clock In Reason', 'Clock Out Reason'];
+  const rows = records.map(r => {
+    const { clockInReason, clockOutReason } = parseAttendanceReasons(r.reason);
+    return [
+      `"${r.employee_name}"`,
+      `"${r.date}"`,
+      `"${formatTime(r.clock_in, false)}"`,
+      `"${r.clock_out ? formatTime(r.clock_out, false) : '-'}"`,
+      `"${r.hours_worked || 'In Progress'}"`,
+      `"${r.status}"`,
+      `"${clockInReason || '-'}"`,
+      `"${clockOutReason || '-'}"`,
+    ];
+  });
 
   const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -298,12 +410,14 @@ export function exportToExcel(records: AttendanceRecord[], filename = 'attendanc
           <th>Clock Out</th>
           <th>Hours Worked</th>
           <th>Status</th>
-          <th>Reason</th>
+          <th>Clock In Reason</th>
+          <th>Clock Out Reason</th>
         </tr>
       </thead>
       <tbody>`;
 
   records.forEach(r => {
+    const { clockInReason, clockOutReason } = parseAttendanceReasons(r.reason);
     table += `
       <tr>
         <td>${r.employee_name}</td>
@@ -312,7 +426,8 @@ export function exportToExcel(records: AttendanceRecord[], filename = 'attendanc
         <td>${r.clock_out ? formatTime(r.clock_out, false) : '-'}</td>
         <td>${r.hours_worked || 'In Progress'}</td>
         <td>${r.status}</td>
-        <td>${r.reason || '-'}</td>
+        <td>${clockInReason || '-'}</td>
+        <td>${clockOutReason || '-'}</td>
       </tr>`;
   });
 

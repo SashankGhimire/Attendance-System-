@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Employee, AttendanceRecord } from '../types';
 import {
   formatShiftTime,
@@ -11,6 +11,7 @@ import {
   checkClockInTiming,
   checkClockOutTiming,
   hasShiftTimePassed,
+  parseAttendanceReasons,
 } from '../lib/utils';
 import { recordClockIn, recordClockOut, reclockRecord } from '../lib/supabase';
 import { ReasonModal } from './ReasonModal';
@@ -58,9 +59,30 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
     isOpen: boolean;
     title: string;
     subtitle?: string;
-    timingType: 'early_in' | 'late_in' | 'early_out' | 'late_out' | 'reclock';
+    timingType: 'clock_in' | 'early_in' | 'late_in' | 'clock_out' | 'early_out' | 'late_out' | 'reclock';
     onConfirm: (reason: string) => Promise<void>;
   } | null>(null);
+
+  const actionResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearActionResetTimer = useCallback(() => {
+    if (actionResetTimerRef.current) {
+      clearTimeout(actionResetTimerRef.current);
+      actionResetTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleActionReset = useCallback(() => {
+    clearActionResetTimer();
+    actionResetTimerRef.current = setTimeout(() => {
+      setActionSuccessAnim(null);
+      actionResetTimerRef.current = null;
+    }, 3500);
+  }, [clearActionResetTimer]);
+
+  useEffect(() => () => {
+    clearActionResetTimer();
+  }, [clearActionResetTimer]);
 
   // Sync selected team member ID if current selection is invalid or when list loads
   useEffect(() => {
@@ -69,9 +91,38 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
     }
   }, [employees, selectedEmployeeId]);
 
-  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || employees[0];
+  const selectedEmployee = useMemo(
+    () => employees.find(e => e.id === selectedEmployeeId) || employees[0],
+    [employees, selectedEmployeeId]
+  );
 
-  // Fallback UI if no team member is available
+  const todayStr = useMemo(() => getTodayString(currentTime), [currentTime]);
+
+  // Find the currently active attendance record, including overnight shifts from yesterday.
+  const openRecord = useMemo(
+    () => findMostRecentOpenAttendanceRecord(attendanceRecords, selectedEmployeeId),
+    [attendanceRecords, selectedEmployeeId]
+  );
+  // Find today's attendance record for the selected team member
+  const todayRecord = useMemo(
+    () => attendanceRecords.find(r => r.employee_id === selectedEmployeeId && r.date === todayStr),
+    [attendanceRecords, selectedEmployeeId, todayStr]
+  );
+  const activeRecord = openRecord ?? todayRecord ?? null;
+  const activeReasons = parseAttendanceReasons(activeRecord?.reason);
+
+  // Status computation
+  const isClockedIn = !!openRecord;
+  const isClockedOut = !openRecord && !!todayRecord && !!todayRecord.clock_out;
+  const shiftTimePassed = useMemo(
+    () => selectedEmployee
+      ? hasShiftTimePassed(currentTime, selectedEmployee.shift_start, selectedEmployee.shift_end)
+      : false,
+    [currentTime, selectedEmployee]
+  );
+
+  // Keep this fallback after all hooks so the initial empty employee list and
+  // the loaded list execute the same hooks in the same order.
   if (!selectedEmployee) {
     return (
       <div className="max-w-2xl mx-auto p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
@@ -83,25 +134,6 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
       </div>
     );
   }
-
-  const todayStr = getTodayString(currentTime);
-
-  // Find the currently active attendance record, including overnight shifts from yesterday.
-  const openRecord = findMostRecentOpenAttendanceRecord(attendanceRecords, selectedEmployeeId);
-  // Find today's attendance record for the selected team member
-  const todayRecord = attendanceRecords.find(
-    r => r.employee_id === selectedEmployeeId && r.date === todayStr
-  );
-  const activeRecord = openRecord ?? todayRecord ?? null;
-
-  // Status computation
-  const isClockedIn = !!openRecord;
-  const isClockedOut = !openRecord && !!todayRecord && !!todayRecord.clock_out;
-  const shiftTimePassed = hasShiftTimePassed(
-    currentTime,
-    selectedEmployee.shift_start,
-    selectedEmployee.shift_end
-  );
 
   let currentStatusText = 'Not Clocked In';
   let currentStatusBadgeClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
@@ -121,25 +153,25 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
   // Core Execution of Clock In with Reason
   const executeClockIn = async (reason?: string) => {
+    const requiredReason = reason?.trim();
+    if (!requiredReason) return;
     setIsProcessing(true);
     setActionSuccessAnim(null);
     try {
       const now = new Date();
       const detectedStatus = determineClockInStatus(now, selectedEmployee.shift_start);
 
-      await recordClockIn(selectedEmployee, detectedStatus, reason);
+      await recordClockIn(selectedEmployee, detectedStatus, requiredReason);
       onRecordChange();
       setActionSuccessAnim('in');
 
       onShowToast(
         'success',
         'Clock In Recorded!',
-        `${selectedEmployee.name} clocked in at ${formatTime(now, false)} (${detectedStatus})${
-          reason ? ` - ${reason}` : ''
-        }`
+        `${selectedEmployee.name} clocked in at ${formatTime(now, false)} (${detectedStatus}) - ${requiredReason}`
       );
 
-      setTimeout(() => setActionSuccessAnim(null), 3500);
+      scheduleActionReset();
     } catch (err) {
       onShowToast('error', 'Clock In Failed', 'Could not record attendance. Please try again.');
     } finally {
@@ -170,30 +202,38 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         onConfirm: executeClockIn,
       });
     } else {
-      executeClockIn();
+      setReasonModalState({
+        isOpen: true,
+        title: 'Clock-In Reason',
+        subtitle: 'Select a reason or write a message before recording your Clock In.',
+        timingType: 'clock_in',
+        onConfirm: executeClockIn,
+      });
     }
   };
 
   // Core Execution of Clock Out with Reason
   const executeClockOut = async (reason?: string) => {
     if (!openRecord) return;
+    const requiredReason = reason?.trim();
+    if (!requiredReason) return;
     setIsProcessing(true);
     setActionSuccessAnim(null);
     try {
       const nowISO = new Date().toISOString();
       const hoursWorked = calculateHoursWorked(openRecord.clock_in, nowISO);
 
-      await recordClockOut(openRecord.id, nowISO, hoursWorked, reason);
+      await recordClockOut(openRecord.id, nowISO, hoursWorked, requiredReason);
       onRecordChange();
       setActionSuccessAnim('out');
 
       onShowToast(
         'success',
         'Clock Out Recorded!',
-        `${selectedEmployee.name} clocked out. Duration: ${hoursWorked}${reason ? ` (${reason})` : ''}`
+        `${selectedEmployee.name} clocked out. Duration: ${hoursWorked} (${requiredReason})`
       );
 
-      setTimeout(() => setActionSuccessAnim(null), 3500);
+      scheduleActionReset();
     } catch (err) {
       onShowToast('error', 'Clock Out Failed', 'Could not update record. Please try again.');
     } finally {
@@ -224,7 +264,13 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
         onConfirm: executeClockOut,
       });
     } else {
-      executeClockOut();
+      setReasonModalState({
+        isOpen: true,
+        title: 'Clock-Out Reason',
+        subtitle: 'Select a reason or write a message before recording your Clock Out.',
+        timingType: 'clock_out',
+        onConfirm: executeClockOut,
+      });
     }
   };
 
@@ -254,7 +300,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
             `${selectedEmployee.name} has re-opened their shift timestamp.`
           );
 
-          setTimeout(() => setActionSuccessAnim(null), 3500);
+          scheduleActionReset();
         } catch (err) {
           onShowToast('error', 'Reclock Failed', 'Could not update shift record.');
         } finally {
@@ -284,7 +330,7 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
             'Overtime Clock-In Recorded!',
             `${selectedEmployee.name} is now clocked in for an overtime session.`
           );
-          setTimeout(() => setActionSuccessAnim(null), 3500);
+          scheduleActionReset();
         } catch (err) {
           onShowToast('error', 'Clock-In Failed', 'Could not record overtime clock-in.');
         } finally {
@@ -324,7 +370,10 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
 
             {/* Close Button */}
             <button
-              onClick={() => setActionSuccessAnim(null)}
+              onClick={() => {
+                clearActionResetTimer();
+                setActionSuccessAnim(null);
+              }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -379,7 +428,10 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
             </p>
 
             <button
-              onClick={() => setActionSuccessAnim(null)}
+              onClick={() => {
+                clearActionResetTimer();
+                setActionSuccessAnim(null);
+              }}
               className="w-full py-3 px-6 bg-slate-900 dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md"
             >
               Continue Work
@@ -489,13 +541,20 @@ export const EmployeeCard: React.FC<EmployeeCardProps> = ({
           </span>
         </div>
 
-        {/* Reason Note Indicator if present on today's record */}
-        {activeRecord?.reason && (
-          <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>
-              <strong>Note logged:</strong> "{activeRecord.reason}"
-            </span>
+        {(activeReasons.clockInReason || activeReasons.clockOutReason) && (
+          <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 font-medium space-y-1.5">
+            {activeReasons.clockInReason && (
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span><strong>Clock In Reason:</strong> "{activeReasons.clockInReason}"</span>
+              </div>
+            )}
+            {activeReasons.clockOutReason && (
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span><strong>Clock Out Reason:</strong> "{activeReasons.clockOutReason}"</span>
+              </div>
+            )}
           </div>
         )}
 

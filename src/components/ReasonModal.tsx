@@ -17,12 +17,18 @@ interface ReasonModalProps {
   isOpen: boolean;
   title: string;
   subtitle?: string;
-  timingType: 'early_in' | 'late_in' | 'early_out' | 'late_out' | 'reclock';
+  timingType: 'clock_in' | 'early_in' | 'late_in' | 'clock_out' | 'early_out' | 'late_out' | 'reclock';
   onSubmit: (reason: string) => void;
   onCancel: () => void;
 }
 
 const PRESET_REASONS: Record<ReasonModalProps['timingType'], string[]> = {
+  clock_in: [
+    'Starting Scheduled Shift',
+    'Approved Team Coverage',
+    'Project Work',
+    'Manager Direct Request',
+  ],
   early_in: [
     'Approved Team Coverage',
     'Early Shift Prep & Setup',
@@ -34,6 +40,12 @@ const PRESET_REASONS: Record<ReasonModalProps['timingType'], string[]> = {
     'Traffic / Transit Delays',
     'Personal / Family Emergency',
     'Medical Appointment',
+  ],
+  clock_out: [
+    'Scheduled Shift Complete',
+    'All Assigned Tasks Complete',
+    'Approved Team Handover',
+    'Manager Direct Request',
   ],
   early_out: [
     'Approved Team Coverage',
@@ -59,6 +71,12 @@ const TIMING_CONFIGS: Record<
   ReasonModalProps['timingType'],
   { badge: string; colorClass: string; bgGradient: string; icon: React.ReactNode }
 > = {
+  clock_in: {
+    badge: 'Clock-In',
+    colorClass: 'text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800',
+    bgGradient: 'from-blue-600 to-indigo-600',
+    icon: <Clock className="w-5 h-5 text-white" />,
+  },
   early_in: {
     badge: 'Early Clock-In',
     colorClass: 'text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
@@ -69,6 +87,12 @@ const TIMING_CONFIGS: Record<
     badge: 'Late Clock-In',
     colorClass: 'text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
     bgGradient: 'from-amber-500 to-orange-600',
+    icon: <Clock className="w-5 h-5 text-white" />,
+  },
+  clock_out: {
+    badge: 'Clock-Out',
+    colorClass: 'text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800',
+    bgGradient: 'from-blue-600 to-indigo-600',
     icon: <Clock className="w-5 h-5 text-white" />,
   },
   early_out: {
@@ -101,12 +125,14 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
 }) => {
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [customReason, setCustomReason] = useState<string>('');
+  const isReasonProvided = selectedPreset.length > 0 || customReason.trim().length > 0;
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalReason = customReason.trim() || selectedPreset || 'Standard operational record';
+    if (!isReasonProvided) return;
+    const finalReason = customReason.trim() || selectedPreset;
     onSubmit(finalReason);
   };
 
@@ -237,7 +263,8 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
             </button>
             <button
               type="submit"
-              className="group flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer"
+              disabled={!isReasonProvided}
+              className="group flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               <span>Confirm & Record Timestamp</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />

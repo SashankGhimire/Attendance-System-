@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AttendanceRecord, Employee } from '../types';
-import { formatTime, formatDate, isAttendanceRelevantForToday } from '../lib/utils';
+import {
+  formatTime,
+  formatDate,
+  getTodayString,
+  getUniqueCurrentlyWorkingRecords,
+  getMostRecentRecordPerEmployee,
+  isAttendanceRelevantForToday,
+} from '../lib/utils';
 import { UserCheck, Clock, AlertTriangle, CheckCircle, User, MessageSquare } from 'lucide-react';
 
 interface DashboardCardsProps {
@@ -9,23 +16,29 @@ interface DashboardCardsProps {
   currentTime: Date;
 }
 
-export const DashboardCards: React.FC<DashboardCardsProps> = ({
+export const DashboardCards = React.memo(function DashboardCards({
   records,
   employees,
   currentTime,
-}) => {
-  // Include overnight records that started yesterday but are still open or completed today.
-  const todayRecords = records.filter(r => isAttendanceRelevantForToday(r, currentTime));
-  const openRecords = records.filter(r => !r.clock_out);
+}: DashboardCardsProps) {
+  const currentDateKey = getTodayString(currentTime);
 
-  const presentTodayCount = todayRecords.filter(r => r.status === 'Present').length;
-  const lateTodayRecords = todayRecords.filter(r => r.status === 'Late');
-  const lateTodayCount = lateTodayRecords.length;
-  
-  // List of team members currently working (clocked in and not clocked out yet)
-  const currentlyWorkingRecords = openRecords;
-  const currentlyWorkingCount = currentlyWorkingRecords.length;
-  const completedTodayCount = todayRecords.filter(r => !!r.clock_out).length;
+  const { todayRecords, lateTodayRecords, currentlyWorkingRecords, presentTodayCount, lateTodayCount, currentlyWorkingCount, completedTodayCount } = useMemo(() => {
+    // Include overnight records that started yesterday but are still open or completed today.
+    const filteredTodayRecords = records.filter(r => isAttendanceRelevantForToday(r, currentTime));
+    const uniqueWorkingRecords = getUniqueCurrentlyWorkingRecords(records);
+    const uniqueLateRecords = getMostRecentRecordPerEmployee(filteredTodayRecords.filter(r => r.status === 'Late'));
+
+    return {
+      todayRecords: filteredTodayRecords,
+      lateTodayRecords: uniqueLateRecords,
+      currentlyWorkingRecords: uniqueWorkingRecords,
+      presentTodayCount: filteredTodayRecords.filter(r => r.status === 'Present').length,
+      lateTodayCount: uniqueLateRecords.length,
+      currentlyWorkingCount: uniqueWorkingRecords.length,
+      completedTodayCount: filteredTodayRecords.filter(r => !!r.clock_out).length,
+    };
+  }, [records, currentDateKey]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -182,4 +195,4 @@ export const DashboardCards: React.FC<DashboardCardsProps> = ({
       </div>
     </div>
   );
-};
+});
